@@ -1,40 +1,21 @@
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
-import { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-
-type Todo = {
-  id: string;
-  content: string;
-  isCompleted: boolean;
-  createdAt: Date;
-};
+import { useTodoStore } from '@/stores/todoStore';
 
 export default function HomeScreen() {
-  const [todos, setTodos] = useState<Todo[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const { todos, isLoading, addTodo, toggleTodo, deleteTodo, loadTodos } = useTodoStore();
 
-  const addTodo = () => {
+  // 组件挂载时加载待办数据
+  useEffect(() => {
+    loadTodos();
+  }, []);
+
+  const handleAddTodo = () => {
     if (inputValue.trim() === '') return;
-    const newTodo: Todo = {
-      id: Date.now().toString(),
-      content: inputValue.trim(),
-      isCompleted: false,
-      createdAt: new Date(),
-    };
-    setTodos([...todos, newTodo]);
+    addTodo(inputValue.trim());
     setInputValue('');
-  };
-
-  const toggleTodo = (id: string) => {
-    setTodos(
-      todos.map((todo) =>
-        todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo
-      )
-    );
-  };
-
-  const deleteTodo = (id: string) => {
-    setTodos(todos.filter((todo) => todo.id !== id));
   };
 
   return (
@@ -49,39 +30,48 @@ export default function HomeScreen() {
           onChangeText={setInputValue}
           placeholder="添加新待办..."
           placeholderTextColor="#999"
-          onSubmitEditing={addTodo}
+          onSubmitEditing={handleAddTodo}
         />
-        <TouchableOpacity style={styles.addButton} onPress={addTodo}>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddTodo}>
           <Text style={styles.addButtonText}>+</Text>
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={todos}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
-        renderItem={({ item }) => (
-          <View style={styles.todoItem}>
-            <TouchableOpacity
-              style={[styles.checkbox, item.isCompleted && styles.checkboxCompleted]}
-              onPress={() => toggleTodo(item.id)}
-            >
-              {item.isCompleted && <Text style={styles.checkmark}>✓</Text>}
-            </TouchableOpacity>
-            <Text
-              style={[styles.todoText, item.isCompleted && styles.todoTextCompleted]}
-            >
-              {item.content}
-            </Text>
-            <TouchableOpacity onPress={() => deleteTodo(item.id)}>
-              <Text style={styles.deleteButton}>×</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>暂无待办事项</Text>
-        }
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      ) : (
+        <FlatList
+          data={todos}
+          keyExtractor={(item) => item.id}
+          style={styles.list}
+          renderItem={({ item }) => (
+            <View style={styles.todoItem}>
+              <TouchableOpacity
+                style={[styles.checkbox, item.isCompleted && styles.checkboxCompleted]}
+                onPress={() => toggleTodo(item.id)}
+              >
+                {item.isCompleted && <Text style={styles.checkmark}>✓</Text>}
+              </TouchableOpacity>
+              <Text
+                style={[styles.todoText, item.isCompleted && styles.todoTextCompleted]}
+              >
+                {item.content}
+                {item.category && (
+                  <Text style={styles.categoryTag}> · {item.category}</Text>
+                )}
+              </Text>
+              <TouchableOpacity onPress={() => deleteTodo(item.id)}>
+                <Text style={styles.deleteButton}>×</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>暂无待办事项</Text>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -134,6 +124,11 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   todoItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -173,6 +168,11 @@ const styles = StyleSheet.create({
   todoTextCompleted: {
     textDecorationLine: 'line-through',
     color: '#999',
+  },
+  categoryTag: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
   },
   deleteButton: {
     fontSize: 24,
