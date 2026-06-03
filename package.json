@@ -11,16 +11,20 @@
     "test": "jest"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@supabase/supabase-js": "^2.45.0",
     "expo": "~52.0.0",
+    "expo-linking": "~7.0.5",
     "expo-router": "~4.0.0",
     "expo-status-bar": "~2.0.0",
     "nativewind": "^4.1.0",
     "react": "18.3.1",
-    "react-native": "0.76.5",
+    "react-dom": "^18.3.1",
+    "react-native": "0.76.9",
     "react-native-safe-area-context": "4.12.0",
     "react-native-screens": "~4.4.0",
+    "react-native-web": "^0.19.13",
     "tailwindcss": "^3.4.0",
     "zustand": "^5.0.0"
   },
@@ -36,6 +40,13 @@
   "private": true,
   "jest": {
     "preset": "react-native",
-    "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"]
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "jsx",
+      "json",
+      "node"
+    ]
   }
 }
