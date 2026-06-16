@@ -5,11 +5,14 @@ import { useTodoStore } from '@/stores/todoStore';
 
 export default function HomeScreen() {
   const [inputValue, setInputValue] = useState('');
-  const { todos, isLoading, addTodo, toggleTodo, deleteTodo, loadTodos } = useTodoStore();
+  const { todos, isLoading, addTodo, toggleTodo, deleteTodo, loadTodos, subscribeToRealtime } =
+    useTodoStore();
 
-  // 组件挂载时加载待办数据
+  // 组件挂载时加载数据 + 订阅实时更新
   useEffect(() => {
     loadTodos();
+    const unsubscribe = subscribeToRealtime();
+    return () => unsubscribe(); // 组件卸载时取消订阅，防止内存泄漏
   }, []);
 
   const handleAddTodo = () => {
