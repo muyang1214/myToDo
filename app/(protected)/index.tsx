@@ -1,12 +1,16 @@
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 import { useTodoStore } from '@/stores/todoStore';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function HomeScreen() {
   const [inputValue, setInputValue] = useState('');
   const { todos, isLoading, addTodo, toggleTodo, deleteTodo, loadTodos, subscribeToRealtime } =
     useTodoStore();
+  const { signOut } = useAuthStore();
+  const router = useRouter();
 
   // 组件挂载时加载数据 + 订阅实时更新
   useEffect(() => {
@@ -19,6 +23,11 @@ export default function HomeScreen() {
     if (inputValue.trim() === '') return;
     addTodo(inputValue.trim());
     setInputValue('');
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace('/login');
   };
 
   return (
@@ -75,6 +84,10 @@ export default function HomeScreen() {
           }
         />
       )}
+
+      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+        <Text style={styles.signOutText}>退出登录</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -187,5 +200,14 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 16,
     marginTop: 50,
+  },
+  signOutButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  signOutText: {
+    color: '#999',
+    fontSize: 14,
   },
 });
