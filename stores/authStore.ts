@@ -44,7 +44,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: data.user });
       }
     } catch (error: any) {
-      set({ error: error.message });
+      const message = error.message === 'Invalid login credentials'
+        ? '用户名或密码错误'
+        : error.message;
+      set({ error: message });
     } finally {
       set({ isLoading: false });
     }
