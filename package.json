@@ -2,6 +2,7 @@
   "name": "mytodo",
   "version": "1.0.0",
   "main": "expo-router/entry",
+  "homepage": "/myToDo",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
