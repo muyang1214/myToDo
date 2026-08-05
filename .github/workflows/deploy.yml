@@ -30,11 +30,24 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
-      # Fix: Expo outputs absolute paths (/_expo/...) but we deploy under /myToDo/ subdirectory
+      # Fix 1: Expo outputs absolute paths (/_expo/, /assets/) but we deploy under /myToDo/ subdirectory.
+      # Must patch BOTH index.html AND the JS bundles — entry.js loads the index chunk and PNG assets
+      # via absolute /_expo/ and /assets/ paths, which would 404 under the subdir.
+      # Only the leading "/_expo/ and "/assets/ (quoted, i.e. at URL start) are prefixed, so nested
+      # "/.../module/assets/..." paths are left untouched.
       - name: Fix asset paths for subdirectory deployment
         run: |
-          sed -i 's|src="/|src="/myToDo/|g' dist/index.html
-          sed -i 's|href="/|href="/myToDo/|g' dist/index.html
+          find dist -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" \) -exec sed -i \
+            -e 's|"/_expo/|"/myToDo/_expo/|g' \
+            -e 's|"/assets/|"/myToDo/assets/|g' \
+            {} +
+
+      # Fix 2: Tell expo-router the client-side basename so routes like "/" match under /myToDo/.
+      # (Expo does not inline EXPO_BASE_URL into the static web bundle, so we inject it as a global
+      # before the deferred entry script runs.)
+      - name: Inject EXPO_BASE_URL for client-side routing
+        run: |
+          sed -i 's@</head>@<script>(function(){window.process=window.process||{};window.process.env=window.process.env||{};window.process.env.EXPO_BASE_URL="/myToDo";})();</script></head>@' dist/index.html
 
       - uses: actions/configure-pages@v5
 
