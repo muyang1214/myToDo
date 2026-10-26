@@ -21,6 +21,7 @@ interface TodoState {
   todos: Todo[];
   isLoading: boolean;
   addTodo: (content: string) => Promise<void>;
+  updateTodo: (id: string, content: string) => Promise<void>;
   toggleTodo: (id: string) => Promise<void>;
   deleteTodo: (id: string) => Promise<void>;
   loadTodos: () => Promise<void>;
@@ -65,6 +66,37 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
       // 插入成功后重新拉取（获得服务端生成的 UUID 和时间戳）
       await refreshTodos();
+    },
+
+    // ---------- 编辑待办（改内容 + 重跑分类） ----------
+    updateTodo: async (id: string, content: string) => {
+      // 去首尾空格；空内容视为取消编辑，不写库也不清空原内容
+      const nextContent = content.trim();
+      if (!nextContent) return;
+
+      const todo = get().todos.find((t) => t.id === id);
+      if (!todo) return;
+
+      // 分类完全由内容关键词决定，改了内容就必须重跑一次
+      const nextCategory = categorizeTodo(nextContent);
+
+      // 只动 content / category，不碰 is_completed / completed_at（编辑不该影响完成状态）
+      const { error } = await supabase
+        .from('todos')
+        .update({ content: nextContent, category: nextCategory })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Failed to update todo:', error);
+        return;
+      }
+
+      // 乐观更新本地状态，与 toggleTodo 保持一致（不等 refreshTodos，减少 UI 延迟）
+      set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, content: nextContent, category: nextCategory } : t,
+        ),
+      });
     },
 
     // ---------- 切换完成状态 ----------
