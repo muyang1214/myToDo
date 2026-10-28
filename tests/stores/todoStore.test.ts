@@ -189,6 +189,37 @@ describe('todoStore（Supabase 版）', () => {
     expect(q.update).toHaveBeenLastCalledWith({ is_completed: false, completed_at: null });
   });
 
+  test('toggleTodo：写库成功返回 true（完成动画据此判断要不要复位）', async () => {
+    useTodoStore.setState({ todos: [makeTodo()] });
+
+    const ok = await useTodoStore.getState().toggleTodo('1');
+
+    expect(ok).toBe(true);
+    expect(useTodoStore.getState().todos[0].isCompleted).toBe(true);
+  });
+
+  test('toggleTodo：写库失败返回 false，且本地状态不变', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    useTodoStore.setState({ todos: [makeTodo()] });
+    q.eq.mockResolvedValueOnce({ error: { message: 'boom' } });
+
+    const ok = await useTodoStore.getState().toggleTodo('1');
+
+    expect(ok).toBe(false);
+    expect(useTodoStore.getState().todos[0].isCompleted).toBe(false);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  test('toggleTodo：id 不存在时返回 false，不发请求', async () => {
+    useTodoStore.setState({ todos: [] });
+
+    const ok = await useTodoStore.getState().toggleTodo('missing');
+
+    expect(ok).toBe(false);
+    expect(q.update).not.toHaveBeenCalled();
+  });
+
   // ---------- 删除 ----------
   test('deleteTodo：删除 Supabase 记录并从本地移除', async () => {
     useTodoStore.setState({ todos: [makeTodo()] });

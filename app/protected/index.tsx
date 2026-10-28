@@ -7,14 +7,16 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useTodoStore } from '@/stores/todoStore';
 import { useAuthStore } from '@/stores/authStore';
-import { Card } from '@/components/Card';
 import { TodoItem } from '@/components/TodoItem';
-import { isToday } from '@/utils/date';
+import { TodayDoneCard } from '@/components/TodayDoneCard';
+import { isToday, toLocalDateKey } from '@/utils/date';
+import { Todo } from '@/types';
 import {
   colors,
   fontSize,
@@ -29,6 +31,9 @@ const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export default function HomeScreen() {
   const [inputValue, setInputValue] = useState('');
+  // 本地日期键。跨过 0 点要变，否则「今日完成」会一直显示昨天的数据
+  const [todayKey, setTodayKey] = useState(() => toLocalDateKey(new Date()));
+
   const {
     todos,
     isLoading,
@@ -49,17 +54,50 @@ export default function HomeScreen() {
     return () => unsubscribe(); // 组件卸载时取消订阅，防止内存泄漏
   }, []);
 
-  // 主页只展示「未完成」，已完成统一进归档页
+  // 跨天检测：回到前台 / 每分钟校验一次本地日期是否变了
+  useEffect(() => {
+    const syncDay = () => {
+      const key = toLocalDateKey(new Date());
+      setTodayKey((prev) => (prev === key ? prev : key));
+    };
+
+    const timer = setInterval(syncDay, 60 * 1000);
+    const appSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') syncDay();
+    });
+
+    // Web 端切标签页回来也要校验
+    const doc: any = (globalThis as any).document;
+    if (doc?.addEventListener) doc.addEventListener('visibilitychange', syncDay);
+
+    return () => {
+      clearInterval(timer);
+      appSub.remove();
+      if (doc?.removeEventListener) doc.removeEventListener('visibilitychange', syncDay);
+    };
+  }, []);
+
+  // 参考「此刻」，todayKey 变化时重算一次，保证跨天后数据是对的
+  const referenceNow = useMemo(() => new Date(), [todayKey]);
+
+  // 主页只展示「未完成」，已完成统一进今日战果卡 + 归档页
   const pendingTodos = useMemo(() => todos.filter((t) => !t.isCompleted), [todos]);
 
-  // 「今日完成」必须按本地时区判定，不能切 ISO 字符串（原因见 utils/date.ts 文件头）
-  const todayDoneCount = useMemo(
-    () => todos.filter((t) => t.isCompleted && t.completedAt && isToday(t.completedAt)).length,
-    [todos],
+  // 今日完成：按本地时区判定（见 utils/date.ts 文件头），按完成时间倒序
+  const todayDone = useMemo(
+    () =>
+      todos
+        .filter(
+          (t): t is Todo & { completedAt: Date } =>
+            t.isCompleted && t.completedAt != null && isToday(t.completedAt, referenceNow),
+        )
+        .sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime()),
+    [todos, referenceNow],
   );
 
-  const now = new Date();
-  const dateLabel = `${now.getMonth() + 1}月${now.getDate()}日 周${WEEKDAYS[now.getDay()]}`;
+  const dateLabel = `${referenceNow.getMonth() + 1}月${referenceNow.getDate()}日 周${
+    WEEKDAYS[referenceNow.getDay()]
+  }`;
 
   const handleAddTodo = () => {
     const content = inputValue.trim();
@@ -97,17 +135,12 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <Card style={styles.statsCard}>
-          <View style={styles.statCell}>
-            <Text style={styles.statNumber}>{pendingTodos.length}</Text>
-            <Text style={styles.statLabel}>待办</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCell}>
-            <Text style={[styles.statNumber, styles.statNumberAccent]}>{todayDoneCount}</Text>
-            <Text style={styles.statLabel}>今日完成</Text>
-          </View>
-        </Card>
+        <TodayDoneCard items={todayDone} onUndo={(id) => toggleTodo(id)} />
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>待办</Text>
+          <Text style={styles.sectionCount}>{pendingTodos.length}</Text>
+        </View>
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -207,35 +240,23 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     includeFontPadding: false,
   },
-  statsCard: {
+  sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginBottom: spacing.lg,
+    alignItems: 'baseline',
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.xs,
   },
-  statCell: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    color: colors.text,
-    fontFamily: fontMono,
-  },
-  statNumberAccent: {
-    color: colors.primary,
-  },
-  statLabel: {
-    marginTop: 2,
-    fontSize: fontSize.xs,
-    color: colors.textMuted,
+  sectionTitle: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     fontFamily: fontSans,
   },
-  statDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: colors.divider,
+  sectionCount: {
+    marginLeft: spacing.sm,
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    color: colors.primary,
+    fontFamily: fontMono,
   },
   list: {
     flex: 1,

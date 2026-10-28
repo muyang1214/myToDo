@@ -22,7 +22,8 @@ interface TodoState {
   isLoading: boolean;
   addTodo: (content: string) => Promise<void>;
   updateTodo: (id: string, content: string) => Promise<void>;
-  toggleTodo: (id: string) => Promise<void>;
+  /** 返回是否写入成功：false 时调用方（完成动画）需要把视觉状态复位 */
+  toggleTodo: (id: string) => Promise<boolean>;
   deleteTodo: (id: string) => Promise<void>;
   loadTodos: () => Promise<void>;
   subscribeToRealtime: () => () => void; // 返回取消订阅的函数
@@ -102,7 +103,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     // ---------- 切换完成状态 ----------
     toggleTodo: async (id: string) => {
       const todo = get().todos.find((t) => t.id === id);
-      if (!todo) return;
+      if (!todo) return false;
 
       const newCompleted = !todo.isCompleted;
 
@@ -116,7 +117,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
       if (error) {
         console.error('Failed to toggle todo:', error);
-        return;
+        return false;
       }
 
       // 乐观更新本地状态（不等 refreshTodos，减少延迟）
@@ -127,6 +128,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
             : t,
         ),
       });
+
+      return true;
     },
 
     // ---------- 删除待办 ----------

@@ -29,6 +29,17 @@ export function isSameLocalDate(a: Date | string | number, b: Date | string | nu
   return toLocalDateKey(a) === toLocalDateKey(b);
 }
 
+/**
+ * 取「本地时区」的 HH:mm，用于今日完成清单的时间戳。
+ * 同样必须用 getHours/getMinutes（本地时区），不能用 ISO 串切片。
+ */
+export function toLocalTimeLabel(input: Date | string | number): string {
+  const d = toDate(input);
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 /** 是否「今天」（本地时区）。now 可注入，便于测试与确定性渲染 */
 export function isToday(input: Date | string | number, now: Date = new Date()): boolean {
   return toLocalDateKey(input) === toLocalDateKey(now);

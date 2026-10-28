@@ -3,6 +3,7 @@ process.env.TZ = 'Asia/Shanghai';
 
 import {
   toLocalDateKey,
+  toLocalTimeLabel,
   isToday,
   isYesterday,
   groupByLocalDate,
@@ -29,6 +30,21 @@ describe('toLocalDateKey - 本地时区分组', () => {
     // 上海 2026-09-29 23:00 = UTC 2026-09-29 15:00
     const lateNight = new Date(Date.UTC(2026, 8, 29, 15, 0, 0));
     expect(toLocalDateKey(lateNight)).toBe('2026-09-29');
+  });
+});
+
+describe('toLocalTimeLabel - 今日完成时间戳', () => {
+  test('按本地时区取 HH:mm，个位数补零', () => {
+    expect(toLocalTimeLabel(new Date(2026, 8, 29, 9, 5))).toBe('09:05');
+    expect(toLocalTimeLabel(new Date(2026, 8, 29, 23, 59))).toBe('23:59');
+    expect(toLocalTimeLabel(new Date(2026, 8, 29, 0, 0))).toBe('00:00');
+  });
+
+  test('时区陷阱：UTC 18:00 在上海应显示为次日 02:00', () => {
+    const localEarlyMorning = new Date(Date.UTC(2026, 8, 28, 18, 0, 0));
+    expect(toLocalTimeLabel(localEarlyMorning)).toBe('02:00');
+    // 反例：切 ISO 串会得到 UTC 的 18:00（错误写法）
+    expect(localEarlyMorning.toISOString().slice(11, 16)).toBe('18:00');
   });
 });
 
