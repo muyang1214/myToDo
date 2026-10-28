@@ -1,14 +1,44 @@
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useTodoStore } from '@/stores/todoStore';
 import { useAuthStore } from '@/stores/authStore';
+import { Card } from '@/components/Card';
+import { TodoItem } from '@/components/TodoItem';
+import { isToday } from '@/utils/date';
+import {
+  colors,
+  fontSize,
+  fontSans,
+  fontMono,
+  spacing,
+  radius,
+  CONTENT_MAX_WIDTH,
+} from '@/theme/tokens';
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export default function HomeScreen() {
   const [inputValue, setInputValue] = useState('');
-  const { todos, isLoading, addTodo, toggleTodo, deleteTodo, loadTodos, subscribeToRealtime } =
-    useTodoStore();
+  const {
+    todos,
+    isLoading,
+    addTodo,
+    updateTodo,
+    toggleTodo,
+    deleteTodo,
+    loadTodos,
+    subscribeToRealtime,
+  } = useTodoStore();
   const { signOut } = useAuthStore();
   const router = useRouter();
 
@@ -19,9 +49,22 @@ export default function HomeScreen() {
     return () => unsubscribe(); // 组件卸载时取消订阅，防止内存泄漏
   }, []);
 
+  // 主页只展示「未完成」，已完成统一进归档页
+  const pendingTodos = useMemo(() => todos.filter((t) => !t.isCompleted), [todos]);
+
+  // 「今日完成」必须按本地时区判定，不能切 ISO 字符串（原因见 utils/date.ts 文件头）
+  const todayDoneCount = useMemo(
+    () => todos.filter((t) => t.isCompleted && t.completedAt && isToday(t.completedAt)).length,
+    [todos],
+  );
+
+  const now = new Date();
+  const dateLabel = `${now.getMonth() + 1}月${now.getDate()}日 周${WEEKDAYS[now.getDay()]}`;
+
   const handleAddTodo = () => {
-    if (inputValue.trim() === '') return;
-    addTodo(inputValue.trim());
+    const content = inputValue.trim();
+    if (!content) return;
+    addTodo(content);
     setInputValue('');
   };
 
@@ -32,62 +75,73 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="auto" />
-      <Text style={styles.title}>MyToDo</Text>
-      
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          value={inputValue}
-          onChangeText={setInputValue}
-          placeholder="添加新待办..."
-          placeholderTextColor="#999"
-          onSubmitEditing={handleAddTodo}
-        />
-        <TouchableOpacity style={styles.addButton} onPress={handleAddTodo}>
-          <Text style={styles.addButtonText}>+</Text>
+      <StatusBar style="dark" />
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.title}>MyToDo</Text>
+          <Text style={styles.dateLabel}>{dateLabel}</Text>
+        </View>
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={inputValue}
+            onChangeText={setInputValue}
+            placeholder="添加新待办..."
+            placeholderTextColor={colors.textMuted}
+            onSubmitEditing={handleAddTodo}
+            returnKeyType="done"
+          />
+          <TouchableOpacity style={styles.addButton} onPress={handleAddTodo} activeOpacity={0.8}>
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Card style={styles.statsCard}>
+          <View style={styles.statCell}>
+            <Text style={styles.statNumber}>{pendingTodos.length}</Text>
+            <Text style={styles.statLabel}>待办</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCell}>
+            <Text style={[styles.statNumber, styles.statNumberAccent]}>{todayDoneCount}</Text>
+            <Text style={styles.statLabel}>今日完成</Text>
+          </View>
+        </Card>
+
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={pendingTodos}
+            keyExtractor={(item) => item.id}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <TodoItem
+                todo={item}
+                onToggle={() => toggleTodo(item.id)}
+                onDelete={() => deleteTodo(item.id)}
+                onSave={(content) => updateTodo(item.id, content)}
+              />
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyTitle}>还没有待办</Text>
+                <Text style={styles.emptyHint}>在上面输入一条，按回车即可添加</Text>
+              </View>
+            }
+          />
+        )}
+
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <Text style={styles.signOutText}>退出登录</Text>
         </TouchableOpacity>
       </View>
-
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      ) : (
-        <FlatList
-          data={todos}
-          keyExtractor={(item) => item.id}
-          style={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.todoItem}>
-              <TouchableOpacity
-                style={[styles.checkbox, item.isCompleted && styles.checkboxCompleted]}
-                onPress={() => toggleTodo(item.id)}
-              >
-                {item.isCompleted && <Text style={styles.checkmark}>✓</Text>}
-              </TouchableOpacity>
-              <Text
-                style={[styles.todoText, item.isCompleted && styles.todoTextCompleted]}
-              >
-                {item.content}
-                {item.category && (
-                  <Text style={styles.categoryTag}> · {item.category}</Text>
-                )}
-              </Text>
-              <TouchableOpacity onPress={() => deleteTodo(item.id)}>
-                <Text style={styles.deleteButton}>×</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>暂无待办事项</Text>
-          }
-        />
-      )}
-
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Text style={styles.signOutText}>退出登录</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -95,119 +149,127 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.bg,
+  },
+  content: {
+    flex: 1,
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
     paddingTop: 60,
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
+  },
+  header: {
+    marginBottom: spacing.xl,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 30,
-    color: '#333',
+    fontSize: fontSize.xxl,
+    fontWeight: '700',
+    color: colors.text,
+    fontFamily: fontSans,
+    letterSpacing: -0.5,
+  },
+  dateLabel: {
+    marginTop: spacing.xs,
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    fontFamily: fontMono,
   },
   inputContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: spacing.md,
   },
   input: {
     flex: 1,
-    height: 50,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    marginRight: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    height: 48,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    marginRight: spacing.sm,
+    fontSize: fontSize.md,
+    color: colors.text,
+    fontFamily: fontSans,
   },
   addButton: {
-    width: 50,
-    height: 50,
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   addButtonText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+    color: colors.surface,
+    fontSize: fontSize.xxl,
+    fontWeight: '600',
+    lineHeight: 28,
+    includeFontPadding: false,
+  },
+  statsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: fontSize.xl,
+    fontWeight: '700',
+    color: colors.text,
+    fontFamily: fontMono,
+  },
+  statNumberAccent: {
+    color: colors.primary,
+  },
+  statLabel: {
+    marginTop: 2,
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    fontFamily: fontSans,
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.divider,
   },
   list: {
     flex: 1,
+  },
+  listContent: {
+    paddingBottom: spacing.md,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  todoItem: {
-    flexDirection: 'row',
+  emptyWrap: {
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    marginTop: 56,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+  emptyTitle: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    fontFamily: fontSans,
   },
-  checkboxCompleted: {
-    backgroundColor: '#007AFF',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  todoText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
-  todoTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#999',
-  },
-  categoryTag: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 8,
-  },
-  deleteButton: {
-    fontSize: 24,
-    color: '#FF3B30',
-    paddingHorizontal: 10,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#999',
-    fontSize: 16,
-    marginTop: 50,
+  emptyHint: {
+    marginTop: spacing.xs,
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    fontFamily: fontSans,
   },
   signOutButton: {
-    marginTop: 20,
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
     alignItems: 'center',
   },
   signOutText: {
-    color: '#999',
-    fontSize: 14,
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    fontFamily: fontSans,
   },
 });
