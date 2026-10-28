@@ -20,7 +20,9 @@ export default function RootLayout() {
       const stripped = pathname.slice(BASE_PATH.length) || '/';
       // replaceState 保持浏览器 URL 不变（避免刷新时 404），
       // 同时让 expo-router 的 location.pathname 返回新路径
-      router.replace(stripped + window.location.search);
+      // 断言成 any：这是运行时从 window.location 算出来的动态路径，
+      // 无法被 expo-router 的静态路由类型穷举
+      router.replace((stripped + window.location.search) as any);
     }
   }, []);
 
