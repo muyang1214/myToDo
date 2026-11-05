@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,13 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  AppState,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import { useTodoStore } from '@/stores/todoStore';
-import { useAuthStore } from '@/stores/authStore';
 import { TodoItem } from '@/components/TodoItem';
 import { TodayDoneCard } from '@/components/TodayDoneCard';
-import { isToday, toLocalDateKey } from '@/utils/date';
+import { useTodayKey } from '@/hooks/useTodayKey';
+import { isToday } from '@/utils/date';
 import { Todo } from '@/types';
 import {
   colors,
@@ -29,10 +27,17 @@ import {
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
+/**
+ * 待办主页：只展示未完成事项 + 今日战果卡。
+ *
+ * 数据加载与实时订阅已上移到 app/protected/_layout.tsx（Tabs 层），
+ * 这里只负责渲染与交互。
+ */
 export default function HomeScreen() {
   const [inputValue, setInputValue] = useState('');
-  // 本地日期键。跨过 0 点要变，否则「今日完成」会一直显示昨天的数据
-  const [todayKey, setTodayKey] = useState(() => toLocalDateKey(new Date()));
+
+  // 跨天自动刷新的「今天」键（含 AppState / Web visibilitychange 三重触发）
+  const todayKey = useTodayKey();
 
   const {
     todos,
@@ -41,43 +46,9 @@ export default function HomeScreen() {
     updateTodo,
     toggleTodo,
     deleteTodo,
-    loadTodos,
-    subscribeToRealtime,
   } = useTodoStore();
-  const { signOut } = useAuthStore();
-  const router = useRouter();
 
-  // 组件挂载时加载数据 + 订阅实时更新
-  useEffect(() => {
-    loadTodos();
-    const unsubscribe = subscribeToRealtime();
-    return () => unsubscribe(); // 组件卸载时取消订阅，防止内存泄漏
-  }, []);
-
-  // 跨天检测：回到前台 / 每分钟校验一次本地日期是否变了
-  useEffect(() => {
-    const syncDay = () => {
-      const key = toLocalDateKey(new Date());
-      setTodayKey((prev) => (prev === key ? prev : key));
-    };
-
-    const timer = setInterval(syncDay, 60 * 1000);
-    const appSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') syncDay();
-    });
-
-    // Web 端切标签页回来也要校验
-    const doc: any = (globalThis as any).document;
-    if (doc?.addEventListener) doc.addEventListener('visibilitychange', syncDay);
-
-    return () => {
-      clearInterval(timer);
-      appSub.remove();
-      if (doc?.removeEventListener) doc.removeEventListener('visibilitychange', syncDay);
-    };
-  }, []);
-
-  // 参考「此刻」，todayKey 变化时重算一次，保证跨天后数据是对的
+  // 参考「此刻」，todayKey 变化时重算，保证跨天后「今天完成」是准的
   const referenceNow = useMemo(() => new Date(), [todayKey]);
 
   // 主页只展示「未完成」，已完成统一进今日战果卡 + 归档页
@@ -104,11 +75,6 @@ export default function HomeScreen() {
     if (!content) return;
     addTodo(content);
     setInputValue('');
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.replace('/login');
   };
 
   return (
@@ -170,10 +136,6 @@ export default function HomeScreen() {
             }
           />
         )}
-
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>退出登录</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -282,15 +244,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: fontSize.sm,
     color: colors.textMuted,
-    fontFamily: fontSans,
-  },
-  signOutButton: {
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  signOutText: {
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
     fontFamily: fontSans,
   },
 });
