@@ -30,6 +30,12 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
+      # 子目录部署引导：把 basePath 剥离脚本注入 index.html。
+      # 必须在 bundle 之前执行（内联脚本 + <head>），否则 expo-router 已用带前缀的
+      # URL 匹配过一轮路由，直接渲染 Unmatched 页且不会自行恢复。
+      - name: Inject subdirectory base path bootstrap
+        run: node scripts/inject-base-path.js dist/index.html /myToDo
+
       # Fix asset paths: Expo outputs absolute paths (/_expo/, /assets/) but we deploy under
       # /myToDo/ subdirectory. Must patch html + js bundles — entry.js loads the index chunk and
       # PNG assets via absolute paths that would 404 under the subdir. Only quoted URL-start
@@ -40,6 +46,12 @@ jobs:
             -e 's|"/_expo/|"/myToDo/_expo/|g' \
             -e 's|"/assets/|"/myToDo/assets/|g' \
             {} +
+
+          # SPA 深链兜底：GitHub Pages 找不到路径时会返回 404.html。
+          # 复制 index.html 当 404，用户刷新 /myToDo/protected 这类地址时仍能加载应用，
+          # 由 app/_layout.tsx 剥离前缀后落到正确路由（否则刷新就是 "Page not found"）。
+          # 必须在 sed 之后复制，404.html 里的资源路径才带 /myToDo 前缀。
+          cp dist/index.html dist/404.html
 
       - uses: actions/configure-pages@v5
 

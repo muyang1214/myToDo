@@ -3,28 +3,23 @@ import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 
 const DEV_SKIP_AUTH = false;
-// GitHub Pages 部署子目录 —— expo-router 不支持原生 baseUrl，
-// 需要在客户端手动剥离前缀再 redirect
-const BASE_PATH = '/myToDo';
+
+// ---------------------------------------------------------------------------
+// 子目录部署（GitHub Pages /myToDo/）的前缀处理全部在 index.html 的内联脚本里完成，
+// 见 scripts/inject-base-path.js。这里不再做任何 URL 改写，原因：
+//
+//   1. 剥离前缀必须早于 expo-router 首次匹配路由，只有 <head> 内联脚本够早；
+//   2. 补回前缀若放在 React effect 里，会被 expo-router 内部的 history.replaceState
+//      覆盖回去（它执行得更晚），两边抢地址栏必然出问题。
+//      因此改在源头包一层 history.pushState/replaceState，统一加前缀。
+//
+// 本地开发（npm run web）和 Vercel 部署在根路径，没有注入脚本，此机制自然不生效。
+// ---------------------------------------------------------------------------
 
 export default function RootLayout() {
   const { checkSession, user, isLoading } = useAuthStore();
   const router = useRouter();
   const prevUser = useRef(user);
-
-  // 剥离 GitHub Pages 子目录前缀，让 expo-router 能正确匹配路由
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const pathname = window.location.pathname;
-    if (pathname.startsWith(BASE_PATH)) {
-      const stripped = pathname.slice(BASE_PATH.length) || '/';
-      // replaceState 保持浏览器 URL 不变（避免刷新时 404），
-      // 同时让 expo-router 的 location.pathname 返回新路径
-      // 断言成 any：这是运行时从 window.location 算出来的动态路径，
-      // 无法被 expo-router 的静态路由类型穷举
-      router.replace((stripped + window.location.search) as any);
-    }
-  }, []);
 
   // 启动时检查会话
   useEffect(() => {
