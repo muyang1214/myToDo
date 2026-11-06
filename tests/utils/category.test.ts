@@ -1,4 +1,4 @@
-import { categorizeTodo } from '../utils/category';
+import { categorizeTodo } from '../../utils/category';
 
 describe('category utility', () => {
   test('categorizes work-related todos', () => {
