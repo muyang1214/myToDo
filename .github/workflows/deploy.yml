@@ -40,6 +40,7 @@ jobs:
       # /myToDo/ subdirectory. Must patch html + js bundles — entry.js loads the index chunk and
       # PNG assets via absolute paths that would 404 under the subdir. Only quoted URL-start
       # patterns ("/_expo/, "/assets/) are prefixed to avoid mangling inner module paths.
+      # PWA head links are NOT handled here: they are injected already-prefixed by the step above.
       - name: Fix asset paths for subdirectory deployment
         run: |
           find dist -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" \) -exec sed -i \
