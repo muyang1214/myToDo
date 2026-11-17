@@ -63,4 +63,13 @@ describe('category utility', () => {
     expect(categorizeTodo('写周报')).toBe('work');
     expect(categorizeTodo('出差')).toBe('work');
   });
+
+  // 守卫用例：分类是子串匹配，短英文关键词会命中其他单词的内部字母组合。
+  // 例如把 'AI' 放进词表后，'daily'.includes('ai') 为真，daily / train / wait /
+  // available 全被判成工作，且 work 先于 sport 检查，会吃掉本该归运动的条目。
+  // 这条不是描述现状，是防止有人再把 AI 加回去。
+  test('英文单词内部的字母组合不构成命中', () => {
+    expect(categorizeTodo('daily 锻炼打卡')).toBe('sport');
+    expect(categorizeTodo('train 计划')).toBeNull();
+  });
 });
