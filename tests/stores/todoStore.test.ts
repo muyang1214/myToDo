@@ -85,6 +85,42 @@ describe('todoStore（Supabase 版）', () => {
     expect(useTodoStore.getState().isLoading).toBe(false);
   });
 
+  // 回归：库里的 category 是「创建那一刻」的快照，词表后来增补的词对它无效。
+  // 映射层必须按 content 实时重算，否则历史待办会永远挂着错误的分类。
+  test('loadTodos：分类按内容实时算，忽略库里存的过期分类', async () => {
+    q.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: '1',
+          user_id: 'u1',
+          content: '星贸达期权两个简单需求产品沟通',
+          category: null,
+          is_completed: false,
+          created_at: '2026-11-10T02:00:00Z',
+          completed_at: null,
+        },
+        {
+          id: '2',
+          user_id: 'u1',
+          content: '买菜',
+          category: 'work',
+          is_completed: false,
+          created_at: '2026-11-10T03:00:00Z',
+          completed_at: null,
+        },
+      ],
+      error: null,
+    });
+
+    await useTodoStore.getState().loadTodos();
+
+    const todos = useTodoStore.getState().todos;
+    // 库里是 null（旧词表漏判），按当前词表应算成 work
+    expect(todos[0].category).toBe('work');
+    // 库里错误地存着 work，按内容应算成 life —— 证明完全没读库里的值
+    expect(todos[1].category).toBe('life');
+  });
+
   // ---------- 新增 ----------
   test('addTodo：未登录时不写库', async () => {
     useAuthStore.setState({ user: null });

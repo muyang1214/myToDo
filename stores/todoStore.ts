@@ -10,7 +10,13 @@ function mapRowToTodo(row: any): Todo {
     id: row.id,
     userId: row.user_id,
     content: row.content,
-    category: row.category,
+    // 分类按内容实时计算，刻意不读库里存的 category。
+    // 库里那个值是「创建那一刻」的快照：addTodo 写入时算一次就再不变了，
+    // 词表后续增补对它完全无效（历史待办会一直挂错标签）。
+    // 在映射层重算，等于让所有读路径（列表、归档、未来按档过滤）自动对齐当前词表，
+    // 无需任何数据迁移；改词表也不再需要回填历史数据。
+    // 以后若要支持「手动改分类」，改这里即可：手动值优先，无手动值才按内容算。
+    category: categorizeTodo(row.content),
     isCompleted: row.is_completed,
     createdAt: new Date(row.created_at),
     completedAt: row.completed_at ? new Date(row.completed_at) : null,

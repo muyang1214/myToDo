@@ -8,28 +8,91 @@ export const CATEGORIES = {
 } as const;
 
 export const CATEGORY_KEYWORDS: Record<keyof typeof CATEGORIES, string[]> = {
-  work: ['工作', '会议', '报告', '项目', '邮件', '加班', 'deadline', '任务','银华','招商','广发'],
-  sport: ['运动', '健身', '跑步', '游泳', '瑜伽', '篮球', '足球', '锻炼','羽毛球', 
-    '网球', '高尔夫', '滑雪', '滑板', '骑行', '登山', '徒步', '马拉松', '铁人三项', '拳击', '摔跤', '柔道', '跆拳道', '武术'],
-  investment: ['投资', '股票', '基金', '理财', '存款', '财务', '账单', '大盘',
-    '收益', '亏损', '资产', '负债', '现金流', '风险', '回报', '股市', '债券', '期货', '外汇',
-    '房地产', '黄金', '白银', '加密货币', '比特币', '以太坊', '区块链', '投资组合', '分散投资', '风险管理',
-    '投资策略', '市场分析', '经济指标', '通货膨胀', '利率', '货币政策', '财政政策', '宏观经济', '微观经济',
-    'A股', 'B股', '港股', '美股', '日经指数', '道琼斯指数', '纳斯达克指数', '标普500指数', '恒生指数', '上证指数',
+  // 协作动作 + 你打交道的机构
+  work: [
+    '开会', '会议', '报告', '周报', '项目', '邮件', '任务', '出差', '客户',
+    '银华', '招商', '广发', '星贸达', '鼎裕', '恒桥', 'andos', '券商',
   ],
-  life: ['生活', '购物', '做饭', '打扫', '洗衣', '约会', '电影', '旅行'],
+  sport: [
+    '运动', '健身', '跑步', '游泳', '锻炼', '羽毛球', '网球', '骑行', '登山', '徒步',
+  ],
+  // 品种 / 市场 / 指数 / 交易动作（做 T 时最常写的就是这些动作词）
+  investment: [
+    '投资', '股票', '基金', '理财', '存款', '大盘', '股市', '债券', '期货',
+    '黄金', '白银', '币安', '比特币', '以太坊', '区块链',
+    '大A', 'A股', '港股', '美股', '上证', '恒生', '日经', '纳指', '道琼斯', '纳斯达克', '标普500',
+    '建仓', '加仓', '减仓', '清仓', '补仓', '持仓', '做T', '盯盘', '止盈', '止损',
+    // 复合词：与 work 的「会议」同长，靠「出现位置更靠前」赢下来（投研会议 → 投资）
+    '投研',
+  ],
+  life: [
+    '生活', '购物', '买菜', '做饭', '打扫', '收拾', '洗衣', '快递', '缴费',
+    '约会', '电影', '旅行', '体检', '理发', '厨房',
+    // 复合词：3 个字，靠「更长」赢过 investment 的「黄金」（买黄金周机票 → 生活）
+    '黄金周',
+  ],
 };
+
+/** 一条命中的候选：由它和别的候选比「谁更具体」 */
+interface KeywordHit {
+  category: keyof typeof CATEGORIES;
+  keyword: string;
+  /** 关键词长度——越长越具体（黄金周 > 黄金） */
+  length: number;
+  /** 在内容中首次出现的位置 */
+  position: number;
+  /** 类别声明顺序，只做最后兜底 */
+  order: number;
+}
+
+/**
+ * 判定「谁更具体」，三层依次比较：
+ *
+ * 1. 关键词更长者优先
+ *    更长的词更具体：「黄金周」明确不是投资，「黄金」才可能是。
+ *
+ * 2. 同长时，出现位置更靠前者优先
+ *    中文定语在前：「体检报告」是体检产生的报告，「投资项目」是投资类的项目，
+ *    前一个词是限定语。已知反例是倒装（「项目投资」会被判成工作），中文里罕见，接受。
+ *
+ * 3. 再同则按类别声明顺序
+ *    纯兜底，保证同样的输入永远得到同样的结果。
+ */
+function isMoreSpecific(a: KeywordHit, b: KeywordHit): boolean {
+  if (a.length !== b.length) return a.length > b.length;
+  if (a.position !== b.position) return a.position < b.position;
+  return a.order < b.order;
+}
 
 export function categorizeTodo(content: string): keyof typeof CATEGORIES | null {
   const lowerContent = content.toLowerCase();
+  const entries = Object.entries(CATEGORY_KEYWORDS);
 
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some((keyword) => lowerContent.includes(keyword))) {
-      return category as keyof typeof CATEGORIES;
+  let best: KeywordHit | null = null;
+
+  for (let order = 0; order < entries.length; order++) {
+    const [category, keywords] = entries[order];
+
+    for (const keyword of keywords) {
+      // 关键词也要转小写再比：内容已被 toLowerCase，若关键词含大写字母（A股 / 做T）会永远匹配不上
+      const position = lowerContent.indexOf(keyword.toLowerCase());
+      if (position === -1) continue;
+
+      const candidate: KeywordHit = {
+        category: category as keyof typeof CATEGORIES,
+        keyword,
+        length: keyword.length,
+        position,
+        order,
+      };
+
+      if (best === null || isMoreSpecific(candidate, best)) {
+        best = candidate;
+      }
     }
   }
 
-  return null;
+  return best === null ? null : best.category;
 }
 
 export type CategoryKey = keyof typeof CATEGORIES | 'none';
