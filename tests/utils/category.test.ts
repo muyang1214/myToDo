@@ -72,4 +72,26 @@ describe('category utility', () => {
     expect(categorizeTodo('daily 锻炼打卡')).toBe('sport');
     expect(categorizeTodo('train 计划')).toBeNull();
   });
+
+  // ---------- 匹配策略：最长命中优先 ----------
+
+  test('更长的关键词赢过更短的', () => {
+    // 黄金周(3) > 黄金(2)，否则「黄金周」会被 investment 抢走
+    expect(categorizeTodo('买黄金周机票')).toBe('life');
+  });
+
+  test('同长时定语在前者赢（出现位置更靠前）', () => {
+    // 投资 pos0 vs 项目 pos2
+    expect(categorizeTodo('投资项目')).toBe('investment');
+    // 体检 pos0 vs 报告 pos2
+    expect(categorizeTodo('体检报告')).toBe('life');
+    // 投研 pos0 vs 会议 pos2
+    expect(categorizeTodo('投研会议')).toBe('investment');
+  });
+
+  // 已知限制，不是 bug：倒装表达「项目投资」里 项目 在前，按位置规则判成工作。
+  // 中文里这种说法罕见，将来遇到就加更长的复合词，不要再往规则里加分支。
+  test('已知限制：倒装表达按首个出现的关键词判定', () => {
+    expect(categorizeTodo('项目投资')).toBe('work');
+  });
 });
